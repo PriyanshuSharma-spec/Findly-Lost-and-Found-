@@ -40,26 +40,6 @@ Findly/
 ├── README.md
 └── ...
 ```
-*(Update this section to match your actual folder/file names.)*
-
----
-
-## How to Run
-
-1. Clone the repository
-   ```
-   git clone https://github.com/your-username/findly.git
-   cd findly
-   ```
-2. Compile the project
-   ```
-   g++ src/main.cpp -o findly
-   ```
-3. Run the executable
-   ```
-   ./findly
-   ```
-*(Update compile command if you're using multiple files or a Makefile.)*
 
 ---
 
@@ -70,7 +50,3 @@ Findly/
 - Add real-time notifications for item matches
 
 ---
-
-## Author
-
-Built by Priyanshu Sharma as a college project.
