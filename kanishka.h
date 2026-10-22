@@ -1,208 +1,473 @@
-// kanishka.h - KANISHKA RAWAT: data structures, reports, search, matching, stack
 #ifndef KANISHKA_H
 #define KANISHKA_H
-#include "models.h"
-#include <algorithm>
-#include <set>
 
-// ================= 1. Singly linked list of reports =================
+#include "models.h"
+#include <fstream>
+
+const int MAX_RESULTS = 100;
+const int MAX_WORDS = 30;
+
 struct Node {
     Report* data;
     Node* next;
-    Node(Report* d) : data(d), next(nullptr) {}
+
+    Node(Report* r) {
+        data = r;
+        next = NULL;
+    }
 };
 
 class ReportList {
 private:
     Node* head;
     int count;
-    ReportList(const ReportList&);              // no copying (owns pointers)
-    ReportList& operator=(const ReportList&);
-public:
-    ReportList() : head(nullptr), count(0) {}
-    ~ReportList() { clear(); }
 
-    void insert(Report* r) {                    // insert at end
-        Node* n = new Node(r);
-        if (!head) head = n;
-        else { Node* t = head; while (t->next) t = t->next; t->next = n; }
+public:
+    ReportList() {
+        head = NULL;
+        count = 0;
+    }
+
+    ~ReportList() {
+        clear();
+    }
+
+    void insert(Report* r) {
+        Node* newNode = new Node(r);
+        if (head == NULL) {
+            head = newNode;
+        } else {
+            Node* temp = head;
+            while (temp->next != NULL) {
+                temp = temp->next;
+            }
+            temp->next = newNode;
+        }
         count++;
     }
-    bool remove(int id) {                       // delete by id
-        Node* cur = head; Node* prev = nullptr;
-        while (cur && cur->data->getId() != id) { prev = cur; cur = cur->next; }
-        if (!cur) return false;
-        if (prev) prev->next = cur->next; else head = cur->next;
-        delete cur->data; delete cur;
+
+    bool removeById(int id) {
+        Node* current = head;
+        Node* previous = NULL;
+
+        while (current != NULL && current->data->getId() != id) {
+            previous = current;
+            current = current->next;
+        }
+
+        if (current == NULL) {
+            return false;
+        }
+
+        if (previous == NULL) {
+            head = current->next;
+        } else {
+            previous->next = current->next;
+        }
+
+        delete current->data;
+        delete current;
         count--;
         return true;
     }
+
     Report* find(int id) const {
-        for (Node* t = head; t; t = t->next) if (t->data->getId() == id) return t->data;
-        return nullptr;
+        Node* temp = head;
+        while (temp != NULL) {
+            if (temp->data->getId() == id) {
+                return temp->data;
+            }
+            temp = temp->next;
+        }
+        return NULL;
     }
+
+    Node* getHead() const { return head; }
     int size() const { return count; }
-    Node* begin() const { return head; }
+
     void clear() {
-        while (head) { Node* t = head; head = head->next; delete t->data; delete t; }
+        while (head != NULL) {
+            Node* temp = head;
+            head = head->next;
+            delete temp->data;
+            delete temp;
+        }
         count = 0;
     }
-    void displayAll(const string& typeFilter = "") const {
-        bool any = false;
-        for (Node* t = head; t; t = t->next)
-            if (typeFilter.empty() || t->data->type() == typeFilter) { t->data->display(); any = true; }
-        if (!any) cout << "  (nothing to show)\n";
-    }
-};
 
-// ================= 2. Search (case-insensitive, partial match) =================
-inline vector<Report*> searchByName(const ReportList& l, const string& q) {
-    vector<Report*> r;
-    for (Node* t = l.begin(); t; t = t->next) if (containsText(t->data->getItem().getName(), q)) r.push_back(t->data);
-    return r;
-}
-inline vector<Report*> searchByCategory(const ReportList& l, const string& q) {
-    vector<Report*> r;
-    for (Node* t = l.begin(); t; t = t->next) if (containsText(t->data->getItem().getCategory(), q)) r.push_back(t->data);
-    return r;
-}
-inline vector<Report*> searchByLocation(const ReportList& l, const string& q) {
-    vector<Report*> r;
-    for (Node* t = l.begin(); t; t = t->next) if (containsText(t->data->getItem().getLocation(), q)) r.push_back(t->data);
-    return r;
-}
-// combined search: leave a field empty to ignore it
-inline vector<Report*> searchAll(const ReportList& l, const string& name, const string& cat, const string& loc) {
-    vector<Report*> r;
-    for (Node* t = l.begin(); t; t = t->next) {
-        const Item& it = t->data->getItem();
-        if (!name.empty() && !containsText(it.getName(), name)) continue;
-        if (!cat.empty()  && !containsText(it.getCategory(), cat)) continue;
-        if (!loc.empty()  && !containsText(it.getLocation(), loc)) continue;
-        r.push_back(t->data);
-    }
-    return r;
-}
-
-// ================= 3. Lost <-> Found matching =================
-// Step 1: compare category and location. Step 2: compare keywords (name + description).
-inline set<string> keywords(const string& text) {
-    static const char* stop[] = {"the", "and", "with", "has", "have", "from", "near", "this", "that", "was", "for", "a", "of"};
-    set<string> out; string w;
-    string t = toLower(text) + " ";
-    for (size_t i = 0; i < t.size(); i++) {
-        if (isalnum((unsigned char)t[i])) w += t[i];
-        else {
-            if (w.size() >= 3) {
-                bool isStop = false;
-                for (size_t k = 0; k < sizeof(stop) / sizeof(stop[0]); k++) if (w == stop[k]) isStop = true;
-                if (!isStop) out.insert(w);
-            }
-            w.clear();
+    void displayAll() const {
+        if (head == NULL) {
+            cout << "  Nothing to show.\n";
+            return;
+        }
+        Node* temp = head;
+        while (temp != NULL) {
+            temp->data->display();
+            temp = temp->next;
         }
     }
-    return out;
+};
+
+int searchReports(const ReportList& list, string name, string category, string location, Report* results[]) {
+    int found = 0;
+    Node* temp = list.getHead();
+
+    while (temp != NULL && found < MAX_RESULTS) {
+        Item it = temp->data->getItem();
+        bool ok = true;
+
+        if (name != "" && !containsText(it.getName(), name)) ok = false;
+        if (category != "" && !containsText(it.getCategory(), category)) ok = false;
+        if (location != "" && !containsText(it.getLocation(), location)) ok = false;
+
+        if (ok) {
+            results[found] = temp->data;
+            found++;
+        }
+        temp = temp->next;
+    }
+    return found;
 }
-inline int matchScore(const Report& lost, const Report& found) {
-    const Item& a = lost.getItem(); const Item& b = found.getItem();
+
+bool isStopWord(string w) {
+    string stopWords[] = {"the", "and", "with", "has", "have", "from", "near", "this", "that", "was", "for"};
+    for (int i = 0; i < 11; i++) {
+        if (w == stopWords[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int getKeywords(string text, string words[]) {
+    int count = 0;
+    string current = "";
+    text = toLower(text) + " ";
+
+    for (size_t i = 0; i < text.size(); i++) {
+        if (isalnum((unsigned char)text[i])) {
+            current += text[i];
+        } else {
+            if (current.size() >= 3 && !isStopWord(current) && count < MAX_WORDS) {
+                bool alreadyThere = false;
+                for (int j = 0; j < count; j++) {
+                    if (words[j] == current) {
+                        alreadyThere = true;
+                    }
+                }
+                if (!alreadyThere) {
+                    words[count] = current;
+                    count++;
+                }
+            }
+            current = "";
+        }
+    }
+    return count;
+}
+
+int matchScore(const Report& lost, const Report& found) {
+    Item a = lost.getItem();
+    Item b = found.getItem();
     int score = 0;
-    if (toLower(a.getCategory()) == toLower(b.getCategory())) score += 3;
-    if (containsText(a.getLocation(), b.getLocation()) || containsText(b.getLocation(), a.getLocation())) score += 2;
-    set<string> ka = keywords(a.getName() + " " + a.getDescription());
-    set<string> kb = keywords(b.getName() + " " + b.getDescription());
+
+    if (toLower(a.getCategory()) == toLower(b.getCategory())) {
+        score += 3;
+    }
+
+    if (containsText(a.getLocation(), b.getLocation()) || containsText(b.getLocation(), a.getLocation())) {
+        score += 2;
+    }
+
+    string wordsA[MAX_WORDS];
+    string wordsB[MAX_WORDS];
+    int countA = getKeywords(a.getName() + " " + a.getDescription(), wordsA);
+    int countB = getKeywords(b.getName() + " " + b.getDescription(), wordsB);
+
     int common = 0;
-    for (set<string>::iterator it = ka.begin(); it != ka.end(); ++it) if (kb.count(*it)) common++;
-    score += (common > 4 ? 4 : common);
+    for (int i = 0; i < countA; i++) {
+        for (int j = 0; j < countB; j++) {
+            if (wordsA[i] == wordsB[j]) {
+                common++;
+            }
+        }
+    }
+    if (common > 4) {
+        common = 4;
+    }
+    score += common;
+
     return score;
 }
-struct MatchResult { Report* found; int score; };
-inline bool betterMatch(const MatchResult& x, const MatchResult& y) { return x.score > y.score; }
 
-// returns open FOUND reports that are likely the lost item (best first)
-inline vector<MatchResult> findMatches(const ReportList& l, const Report& lost) {
-    vector<MatchResult> out;
-    for (Node* t = l.begin(); t; t = t->next) {
-        Report* f = t->data;
-        if (f->type() != "FOUND" || f->getStatus() == RETURNED) continue;
-        int s = matchScore(lost, *f);
-        bool sameCat = toLower(lost.getItem().getCategory()) == toLower(f->getItem().getCategory());
-        if (sameCat && s >= 4) { MatchResult m; m.found = f; m.score = s; out.push_back(m); }
+struct MatchResult {
+    Report* found;
+    int score;
+};
+
+int findMatches(const ReportList& list, const Report& lost, MatchResult matches[]) {
+    int count = 0;
+    Node* temp = list.getHead();
+
+    while (temp != NULL && count < MAX_RESULTS) {
+        Report* f = temp->data;
+        if (f->getType() == "FOUND" && f->getStatus() != RETURNED) {
+            bool sameCategory = toLower(lost.getItem().getCategory()) == toLower(f->getItem().getCategory());
+            int score = matchScore(lost, *f);
+            if (sameCategory && score >= 4) {
+                matches[count].found = f;
+                matches[count].score = score;
+                count++;
+            }
+        }
+        temp = temp->next;
     }
-    sort(out.begin(), out.end(), betterMatch);
-    return out;
+
+    for (int i = 0; i < count - 1; i++) {
+        for (int j = 0; j < count - i - 1; j++) {
+            if (matches[j].score < matches[j + 1].score) {
+                MatchResult swapTemp = matches[j];
+                matches[j] = matches[j + 1];
+                matches[j + 1] = swapTemp;
+            }
+        }
+    }
+    return count;
 }
 
-// ================= 4. Queue of ownership-claim requests (FIFO) =================
-struct ClaimNode { ClaimRequest data; ClaimNode* next; };
+struct ClaimNode {
+    ClaimRequest data;
+    ClaimNode* next;
+};
+
 class ClaimQueue {
 private:
-    ClaimNode *front, *rear; int count;
-    ClaimQueue(const ClaimQueue&);
-    ClaimQueue& operator=(const ClaimQueue&);
+    ClaimNode* front;
+    ClaimNode* rear;
+    int count;
+
 public:
-    ClaimQueue() : front(nullptr), rear(nullptr), count(0) {}
-    ~ClaimQueue() { ClaimRequest tmp; while (dequeue(tmp)) {} }
-    void enqueue(const ClaimRequest& c) {
-        ClaimNode* n = new ClaimNode{c, nullptr};
-        if (rear) rear->next = n; else front = n;
-        rear = n; count++;
+    ClaimQueue() {
+        front = NULL;
+        rear = NULL;
+        count = 0;
     }
-    bool dequeue(ClaimRequest& out) {
-        if (!front) return false;
-        ClaimNode* t = front; out = t->data; front = front->next;
-        if (!front) rear = nullptr;
-        delete t; count--; return true;
+
+    ~ClaimQueue() {
+        ClaimRequest temp;
+        while (dequeue(temp)) {
+        }
     }
-    bool isEmpty() const { return front == nullptr; }
+
+    void enqueue(ClaimRequest c) {
+        ClaimNode* newNode = new ClaimNode;
+        newNode->data = c;
+        newNode->next = NULL;
+
+        if (rear == NULL) {
+            front = newNode;
+        } else {
+            rear->next = newNode;
+        }
+        rear = newNode;
+        count++;
+    }
+
+    bool dequeue(ClaimRequest& c) {
+        if (front == NULL) {
+            return false;
+        }
+        ClaimNode* temp = front;
+        c = temp->data;
+        front = front->next;
+        if (front == NULL) {
+            rear = NULL;
+        }
+        delete temp;
+        count--;
+        return true;
+    }
+
+    bool isEmpty() const { return front == NULL; }
     int size() const { return count; }
+
+    int maxClaimId() const {
+        int maxId = 0;
+        ClaimNode* temp = front;
+        while (temp != NULL) {
+            if (temp->data.claimId > maxId) maxId = temp->data.claimId;
+            temp = temp->next;
+        }
+        return maxId;
+    }
+
+    bool saveToFile(const string& fileName = "claims.txt") const {
+        ofstream out(fileName.c_str());
+        if (!out) return false;
+        ClaimNode* temp = front;
+        while (temp != NULL) {
+            out << temp->data.claimId << "|" << temp->data.lostId << "|"
+                << temp->data.foundId << "|" << cleanText(temp->data.claimantEmail)
+                << "|" << cleanText(temp->data.answer) << "\n";
+            temp = temp->next;
+        }
+        return true;
+    }
+
+    int loadFromFile(const string& fileName = "claims.txt") {
+        ifstream in(fileName.c_str());
+        string line;
+        int maxId = 0;
+        ClaimRequest c;
+        while (getline(in, line)) {
+            string parts[5];
+            if (splitLine(line, '|', parts, 5) != 5) continue;
+            c.claimId = atoi(parts[0].c_str());
+            c.lostId = atoi(parts[1].c_str());
+            c.foundId = atoi(parts[2].c_str());
+            c.claimantEmail = parts[3];
+            c.answer = parts[4];
+            enqueue(c);
+            if (c.claimId > maxId) maxId = c.claimId;
+        }
+        return maxId;
+    }
+
     void display() const {
-        if (!front) { cout << "  (no pending claims)\n"; return; }
-        for (ClaimNode* t = front; t; t = t->next)
-            cout << "  Claim #" << t->data.claimId << " by " << t->data.claimantEmail
-                 << " (lost #" << t->data.lostId << " -> found #" << t->data.foundId << ")\n";
+        if (front == NULL) {
+            cout << "  No pending claims.\n";
+            return;
+        }
+        ClaimNode* temp = front;
+        while (temp != NULL) {
+            cout << "  Claim #" << temp->data.claimId << " by " << temp->data.claimantEmail
+                 << " (lost #" << temp->data.lostId << ", found #" << temp->data.foundId << ")\n";
+            temp = temp->next;
+        }
     }
 };
 
-// ================= 5. Stack of recent activity (LIFO) =================
-struct ActNode { string text; ActNode* next; };
+struct ActivityNode {
+    string text;
+    ActivityNode* next;
+};
+
 class ActivityStack {
 private:
-    ActNode* topNode; int count;
-    ActivityStack(const ActivityStack&);
-    ActivityStack& operator=(const ActivityStack&);
+    ActivityNode* topNode;
+    int count;
+
 public:
-    ActivityStack() : topNode(nullptr), count(0) {}
-    ~ActivityStack() { while (!isEmpty()) pop(); }
-    void push(const string& s) { topNode = new ActNode{s, topNode}; count++; }
-    string pop() {
-        if (!topNode) return "";
-        ActNode* t = topNode; string s = t->text; topNode = t->next; delete t; count--; return s;
+    ActivityStack() {
+        topNode = NULL;
+        count = 0;
     }
-    string top() const { return topNode ? topNode->text : ""; }
-    bool isEmpty() const { return topNode == nullptr; }
+
+    ~ActivityStack() {
+        while (!isEmpty()) {
+            pop();
+        }
+    }
+
+    void push(string text) {
+        ActivityNode* newNode = new ActivityNode;
+        newNode->text = text;
+        newNode->next = topNode;
+        topNode = newNode;
+        count++;
+    }
+
+    string pop() {
+        if (topNode == NULL) {
+            return "";
+        }
+        ActivityNode* temp = topNode;
+        string text = temp->text;
+        topNode = topNode->next;
+        delete temp;
+        count--;
+        return text;
+    }
+
+    string top() const {
+        if (topNode == NULL) {
+            return "";
+        }
+        return topNode->text;
+    }
+
+    bool isEmpty() const { return topNode == NULL; }
     int size() const { return count; }
-    void display(int n = 5) const {   // newest first
-        if (!topNode) { cout << "  (no activity yet)\n"; return; }
-        int i = 0;
-        for (ActNode* t = topNode; t && i < n; t = t->next, i++) cout << "  - " << t->text << "\n";
+
+    bool saveToFile(const string& fileName = "activity.txt") const {
+        ofstream out(fileName.c_str());
+        if (!out) return false;
+        // Write oldest first so loading restores the same stack order.
+        string entries[1000];
+        int n = 0;
+        ActivityNode* temp = topNode;
+        while (temp != NULL && n < 1000) {
+            entries[n++] = cleanText(temp->text);
+            temp = temp->next;
+        }
+        for (int i = n - 1; i >= 0; --i) out << entries[i] << "\n";
+        return true;
+    }
+
+    void loadFromFile(const string& fileName = "activity.txt") {
+        ifstream in(fileName.c_str());
+        string line;
+        string entries[1000];
+        int n = 0;
+        while (getline(in, line) && n < 1000) entries[n++] = line;
+        for (int i = 0; i < n; ++i) push(entries[i]);
+    }
+
+    void display(int limit) const {
+        if (topNode == NULL) {
+            cout << "  No activity yet.\n";
+            return;
+        }
+        ActivityNode* temp = topNode;
+        int shown = 0;
+        while (temp != NULL && shown < limit) {
+            cout << "  - " << temp->text << "\n";
+            temp = temp->next;
+            shown++;
+        }
     }
 };
 
-// ================= 6. Creating a report from console input =================
-inline Report* createReportFromInput(bool isLost, const string& email, int id) {
-    cout << (isLost ? "\n-- Report LOST item --\n" : "\n-- Report FOUND item --\n");
-    string name = readLine("Item name: ");
-    string cat  = readLine("Category (ID card / wallet / keys / phone / bag / other): ");
-    string loc  = readLine("Location: ");
-    string desc = readLine("Description (colour, brand, marks): ");
-    if (name.empty() || cat.empty() || loc.empty()) { cout << "Name, category and location are required.\n"; return nullptr; }
-    string secret;
-    if (!isLost) {
-        secret = readLine("Hidden detail only the owner would know (used for verification): ");
-        if (secret.empty()) { cout << "A hidden detail is required for found items.\n"; return nullptr; }
+Report* createReportFromInput(bool isLost, string email, int id) {
+    if (isLost) {
+        cout << "\n-- Report LOST item --\n";
+    } else {
+        cout << "\n-- Report FOUND item --\n";
     }
-    Item it(name, cat, loc, desc, secret);
-    if (isLost) return new LostReport(id, it, email);
+
+    string name = readLine("Item name: ");
+    string category = readLine("Category (ID card / wallet / keys / phone / bag / other): ");
+    string location = readLine("Location: ");
+    string description = readLine("Description (colour, brand, marks): ");
+
+    if (name == "" || category == "" || location == "") {
+        cout << "Name, category and location are required.\n";
+        return NULL;
+    }
+
+    string secret = "";
+    if (!isLost) {
+        secret = readLine("Hidden detail only the owner would know: ");
+        if (secret == "") {
+            cout << "A hidden detail is required for found items.\n";
+            return NULL;
+        }
+    }
+
+    Item it(name, category, location, description, secret);
+    if (isLost) {
+        return new LostReport(id, it, email);
+    }
     return new FoundReport(id, it, email);
 }
 
